@@ -158,7 +158,16 @@ class EdisioGateway:
         await self._async_load()
         await self._resolve_dongle()
         await self._connect()
-        # re-cree les entites des emetteurs deja connus (apres redemarrage)
+
+    @callback
+    def async_announce_known(self) -> None:
+        """Re-cree les entites des emetteurs deja connus (apres redemarrage).
+
+        A appeler APRES la mise en place des plateformes : sinon les listeners
+        SIGNAL_DISCOVERY ne sont pas encore branches et les entites decouvertes
+        (capteurs temperature/batterie, binaires, evenements) ne sont pas
+        recreees et restent « Inconnu ».
+        """
         for dev_id, kinds in self.accepted.items():
             data = {"id": dev_id, "kinds": set(kinds), "name": self.names.get(dev_id)}
             data.update(self.last_values.get(dev_id, {}))  # amorce si valeur connue
