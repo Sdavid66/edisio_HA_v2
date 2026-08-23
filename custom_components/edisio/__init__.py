@@ -52,6 +52,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_hub(hass, entry, gateway)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Les plateformes ont branche leurs listeners SIGNAL_DISCOVERY : on peut
+    # maintenant re-annoncer les emetteurs deja connus pour recreer leurs
+    # entites (sondes, binaires, evenements decouverts) apres un redemarrage.
+    gateway.async_announce_known()
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     _register_services(hass)
     return True
