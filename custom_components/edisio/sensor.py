@@ -51,10 +51,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
         name = data.get("name")
         if has_batt and f"{dev_id}_battery" not in seen:
             seen.add(f"{dev_id}_battery")
-            new.append(EdisioBatterySensor(entry.entry_id, dev_id, name))
+            new.append(EdisioBatterySensor(entry.entry_id, dev_id, name,
+                                           data.get("battery")))
         if has_temp and f"{dev_id}_temp" not in seen:
             seen.add(f"{dev_id}_temp")
-            new.append(EdisioTemperatureSensor(entry.entry_id, dev_id, name))
+            new.append(EdisioTemperatureSensor(entry.entry_id, dev_id, name,
+                                               data.get("temperature")))
         if new:
             async_add_entities(new)
 
@@ -96,10 +98,13 @@ class EdisioBatterySensor(_Base):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_entity_registry_enabled_default = True
 
-    def __init__(self, entry_id: str, dev_id: str, name: str | None = None):
+    def __init__(self, entry_id: str, dev_id: str, name: str | None = None,
+                 initial: int | None = None):
         super().__init__(entry_id, dev_id, name)
         self._attr_name = f"Edisio {dev_id} batterie"
         self._attr_unique_id = f"{DOMAIN}_{dev_id}_battery"
+        if initial is not None:
+            self._attr_native_value = initial
 
     @callback
     def _update(self, data: dict) -> None:
@@ -113,10 +118,13 @@ class EdisioTemperatureSensor(_Base):
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def __init__(self, entry_id: str, dev_id: str, name: str | None = None):
+    def __init__(self, entry_id: str, dev_id: str, name: str | None = None,
+                 initial: float | None = None):
         super().__init__(entry_id, dev_id, name)
         self._attr_name = f"Edisio {dev_id} temperature"
         self._attr_unique_id = f"{DOMAIN}_{dev_id}_temperature"
+        if initial is not None:
+            self._attr_native_value = initial
 
     @callback
     def _update(self, data: dict) -> None:
