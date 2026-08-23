@@ -12,7 +12,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.loader import async_get_integration
 
-from . import jeedom_import, models, protocol
+from . import jeedom_import, models
 from .device import gateway_id
 from .const import (
     CONF_DEV_ID, CONF_DEVICES, CONF_EDISIO_ID, CONF_KIND, CONF_PORT, DOMAIN,
@@ -151,9 +151,8 @@ def _register_services(hass: HomeAssistant) -> None:
             await gw.async_forget(dev_id, ban)
 
     async def _handle_learn(call: ServiceCall) -> None:
-        frames = protocol.cmd_learn(call.data["edisio_id"],
-                                    call.data.get("emitter_mid", "04"))
-        await _gateways()[0].async_send(frames)
+        await _gateways()[0].async_learn(call.data["edisio_id"],
+                                         call.data.get("emitter_mid", "04"))
 
     async def _handle_send_raw(call: ServiceCall) -> None:
         # Trame simple, ou plusieurs trames séparées par « && » (comme les
