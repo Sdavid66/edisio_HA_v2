@@ -124,6 +124,8 @@ class EdisioGateway:
         self.names: dict[str, str] = {}           # {id: nom choisi a la decouverte}
         self.remote_ids: set[str] = set()         # id des telecommandes (sous-entrees)
         self.banned: set[str] = set()
+        # derniere temperature/batterie recue, pour amorcer les capteurs a l'ajout
+        self.last_values: dict[str, dict] = {}
         self.inclusion = False
         self._capturing = False                     # assistant « Ajouter un appareil »
         self._pending_emitter: dict | None = None
@@ -158,10 +160,9 @@ class EdisioGateway:
         await self._connect()
         # re-cree les entites des emetteurs deja connus (apres redemarrage)
         for dev_id, kinds in self.accepted.items():
-            async_dispatcher_send(
-                self.hass, SIGNAL_DISCOVERY,
-                {"id": dev_id, "kinds": set(kinds), "name": self.names.get(dev_id)},
-            )
+            data = {"id": dev_id, "kinds": set(kinds), "name": self.names.get(dev_id)}
+            data.update(self.last_values.get(dev_id, {}))  # amorce si valeur connue
+            async_dispatcher_send(self.hass, SIGNAL_DISCOVERY, data)
 
     async def _resolve_dongle(self) -> None:
         """Identifie le dongle (description USB, VID:PID) pour l'appareil hub."""
@@ -293,6 +294,13 @@ class EdisioGateway:
 
         kinds = classify(decoded)
 
+        # Memorise la derniere temperature/batterie : sert a amorcer les capteurs
+        # des l'ajout (sinon ils restent « Inconnu » jusqu'a la prochaine emission).
+        seed = {k: decoded[k] for k in ("temperature", "battery")
+                if decoded.get(k) is not None}
+        if seed:
+            self.last_values[dev_id] = seed
+
         # Assistant « Ajouter un appareil » : on capture le premier appui recu,
         # que l'emetteur soit deja connu ou non (pas de carte pendant la capture).
         if self._capturing:
@@ -359,10 +367,9 @@ class EdisioGateway:
         else:
             self.names.pop(dev_id, None)
         await self._store.async_save(self._data_to_save())
-        async_dispatcher_send(
-            self.hass, SIGNAL_DISCOVERY,
-            {"id": dev_id, "kinds": set(kinds), "name": self.names.get(dev_id)},
-        )
+        payload = {"id": dev_id, "kinds": set(kinds), "name": self.names.get(dev_id)}
+        payload.update(self.last_values.get(dev_id, {}))  # amorce temperature/batterie
+        async_dispatcher_send(self.hass, SIGNAL_DISCOVERY, payload)
         _LOGGER.info("Emetteur %s ajoute via la decouverte (nom=%s)", dev_id, name)
 
     # --------------------------------------------------- capture (assistant)
