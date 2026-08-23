@@ -68,6 +68,22 @@ def build_command(action: str, edisio_id: str, group: int,
     return f"{zia} ID {dev_dec} EDISIO{qual}"
 
 
+def build_assoc_command(edisio_id: str, group: int = 1) -> str | None:
+    """Traduit l'appairage en commande ZIA « ASSOC » (sans le prefixe « ZIA++ »).
+
+    Equivalent RFPlayer de la trame d'apprentissage Edisio ``09<MID>1F000010`` :
+    le RFPlayer emet sa sequence d'association Edisio pendant que le module est
+    en mode apprentissage, afin qu'il memorise l'emetteur virtuel. Le MID Edisio
+    n'a pas d'equivalent ZIA (le RFPlayer gere l'emulation en interne).
+    Detail a valider sur materiel reel.
+    """
+    try:
+        dev_dec = int(edisio_id, 16)
+    except (TypeError, ValueError):
+        return None
+    return f"ASSOC ID {dev_dec} EDISIO QUALIFIER {int(group)}"
+
+
 def _battery_pct(infos: dict) -> int | None:
     """Extrait un pourcentage batterie depuis infoMeaning (« …, 3.5V »)."""
     meaning = str(infos.get("infoMeaning", ""))

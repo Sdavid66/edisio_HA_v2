@@ -111,6 +111,10 @@ MID read automatically from the model** (e.g. `01` micro-modules, `05` DIN rail)
 setup. It's a **one-shot** send (3 repeats): it **listens to nothing**, opens no window,
 changes no state in HA.
 
+> 💡 **Depends on the dongle.** With the **Edisio dongle** the button transmits the raw
+> frame above; with **RFPlayer** it sends the equivalent association command
+> `ZIA++ASSOC … EDISIO` (beta). The procedure on the module side is the same.
+
 > ⚠️ **Not to be confused with inclusion mode.** **Inclusion** = HA *listens* (RX) to
 > **discover emitters** (remotes, sensors). The **"Appairer"** button = HA *transmits*
 > (TX) so a **receiver** memorises HA. Rule of thumb: **emitter → inclusion, receiver →

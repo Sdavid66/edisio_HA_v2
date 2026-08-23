@@ -14,7 +14,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import protocol
 from .const import CONF_NAME, DOMAIN
 from .entity import EdisioReceiver, model_emitter_mid
 
@@ -44,4 +43,5 @@ class EdisioLearnButton(EdisioReceiver, ButtonEntity):
 
     async def async_press(self) -> None:
         # Module en apprentissage (LED clignotante) -> il memorise cet emetteur.
-        await self._gateway.async_send(protocol.cmd_learn(self._id, self._mid))
+        # Route selon le dongle : trame Edisio brute ou commande ASSOC RFPlayer.
+        await self._gateway.async_learn(self._id, self._mid)

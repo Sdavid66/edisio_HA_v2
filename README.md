@@ -117,6 +117,11 @@ avec le **bon MID lu automatiquement dans le modèle** (ex. `01` micro-modules, 
 DIN) — aucun réglage. C'est un envoi **ponctuel** (3 répétitions) : il **n'écoute rien**,
 n'ouvre aucune fenêtre et ne change aucun état dans HA.
 
+> 💡 **Selon le dongle.** Avec le **dongle Edisio** le bouton émet la trame brute
+> ci-dessus ; avec **RFPlayer** il envoie la commande d'association équivalente
+> `ZIA++ASSOC … EDISIO` (support en version de test). La procédure côté module reste
+> identique.
+
 > ⚠️ **À ne pas confondre avec le mode inclusion.** L'**inclusion** = HA *écoute* (RX)
 > pour **découvrir des émetteurs** (télécommandes, sondes). Le bouton **« Appairer »** =
 > HA *émet* (TX) pour qu'un **récepteur** mémorise HA. Règle simple : **émetteur →

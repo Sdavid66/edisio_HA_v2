@@ -486,6 +486,20 @@ class EdisioGateway:
             return
         await self.async_send(protocol.render(template, edisio_id, group, level))
 
+    async def async_learn(self, edisio_id: str, mid: str = "04",
+                          group: int = 1) -> None:
+        """Appaire un recepteur : trame d'apprentissage (Edisio) ou ASSOC (RFPlayer)."""
+        if self.dongle == DONGLE_RFPLAYER:
+            command = rfplayer.build_assoc_command(edisio_id, group)
+            if command is None:
+                _LOGGER.warning("Appairage %s non traduisible en commande RFPlayer",
+                                edisio_id)
+                return
+            async with self._write_lock:
+                self._write_line(command)
+            return
+        await self.async_send(protocol.cmd_learn(edisio_id, mid))
+
     async def async_send(self, frames: list[str]) -> None:
         """Emission de trames Edisio brutes (dongle transparent uniquement)."""
         if self.dongle == DONGLE_RFPLAYER:
