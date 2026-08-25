@@ -12,12 +12,15 @@ inclusion_mode:
         boolean:
     duration:
       name: Duree (s)
-      description: Fermeture automatique de la fenetre d'inclusion (0 = sans limite).
+      description: >
+        Fermeture automatique de la fenetre d'inclusion. Bornee a 120 s au
+        maximum : 0 (ou une valeur plus grande) est ramene a 120 s. Le mode
+        ecoute ne peut donc jamais rester actif en permanence.
       default: 120
       selector:
         number:
           min: 0
-          max: 600
+          max: 120
           unit_of_measurement: s
 
 exclude:

@@ -155,6 +155,10 @@ class EdisioGateway:
     # ------------------------------------------------------------------ vie
     async def async_start(self) -> None:
         self._closing = False
+        # Le mode inclusion n'est jamais persiste : il redemarre TOUJOURS sur OFF
+        # (au demarrage de HA comme au rechargement de l'integration).
+        self.inclusion = False
+        self._capturing = False
         await self._async_load()
         await self._resolve_dongle()
         await self._connect()
@@ -415,18 +419,29 @@ class EdisioGateway:
     # -------------------------------------------------------------- inclusion
     @callback
     def async_set_inclusion(self, enabled: bool, duration: int = INCLUSION_TIMEOUT):
-        """Active/desactive le mode inclusion (avec fenetre auto-off)."""
+        """Active/desactive le mode inclusion.
+
+        Securite : quand on l'active, un arret automatique est TOUJOURS
+        programme, et la fenetre est bornee a INCLUSION_TIMEOUT au maximum.
+        Une duree nulle/negative/absente ou superieure a la borne est ramenee a
+        INCLUSION_TIMEOUT : le mode ecoute ne peut donc jamais rester bloque en
+        permanence (meme via le service avec duration: 0).
+        """
         if self._inclusion_cancel:
             self._inclusion_cancel()
             self._inclusion_cancel = None
         if not enabled:
             self._capturing = False
         self.inclusion = enabled
-        _LOGGER.info("Mode inclusion : %s", "ON" if enabled else "OFF")
-        if enabled and duration:
+        if enabled:
+            if not duration or duration <= 0 or duration > INCLUSION_TIMEOUT:
+                duration = INCLUSION_TIMEOUT
+            _LOGGER.info("Mode inclusion : ON (arret auto dans %d s)", duration)
             self._inclusion_cancel = async_call_later(
                 self.hass, duration, self._auto_off
             )
+        else:
+            _LOGGER.info("Mode inclusion : OFF")
         async_dispatcher_send(self.hass, SIGNAL_INCLUSION, enabled)
 
     @callback
