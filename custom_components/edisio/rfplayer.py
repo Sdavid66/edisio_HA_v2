@@ -34,6 +34,23 @@ _ACTION_ZIA = {
     "heat_on": "ON", "heat_off": "OFF", "heat_other": "DIM",
 }
 
+# Actions correspondant au bouton « OFF » (pair) d'une paire Edisio ; les autres
+# tombent sur le bouton « ON » (impair). Voir _qualifier().
+_OFF_ACTIONS = {"off", "close", "down", "stop", "heat_off"}
+
+
+def _qualifier(action: str, group: int) -> int:
+    """Numero de bouton Edisio (QUALIFIER RFPlayer) pour une action + un canal.
+
+    Les emetteurs Edisio ont des boutons par PAIRES : ON = bouton impair,
+    OFF = bouton pair. Canal 1 -> ON=1/OFF=2, canal 2 -> ON=3/OFF=4, etc.
+    Confirme sur materiel reel : l'extinction d'un module mono-canal repond au
+    QUALIFIER 2 (et l'allumage au QUALIFIER 1). Envoyer le meme qualifier pour
+    ON et OFF (l'ancien comportement = le canal brut) empechait l'extinction.
+    """
+    base = 2 * (max(1, int(group)) - 1)
+    return base + (2 if action in _OFF_ACTIONS else 1)
+
 # subTypeMeaning RFPlayer  ->  valeur logique (comme protocol.DECODE_VALUE)
 _SUBTYPE_VALUE = {
     "ON": "on", "OFF": "off", "TOGGLE": "toggle",
@@ -59,16 +76,16 @@ def build_command(action: str, edisio_id: str, group: int,
     # Syntaxe RFPlayer/ZiBlue : « ZIA++<CMD> <PROTOCOLE> ID <n> [QUALIFIER q] ».
     # Le nom du protocole vient AVANT « ID » (et non apres) ; l'inverse est mal
     # interprete par le RFPlayer (commande ON/OFF erratique sur materiel reel).
-    qual = f" QUALIFIER {int(group)}"
+    # Le QUALIFIER = numero de bouton Edisio, distinct pour ON et OFF (paires).
     if action == "slider" and level is not None:
         lvl = max(0, min(100, int(level)))
-        if lvl == 0:
-            return f"OFF EDISIO ID {dev_dec}{qual}"
-        return f"DIM EDISIO ID {dev_dec} %{lvl}{qual}"
+        if lvl == 0:  # extinction -> bouton OFF de la paire
+            return f"OFF EDISIO ID {dev_dec} QUALIFIER {_qualifier('off', group)}"
+        return f"DIM EDISIO ID {dev_dec} %{lvl} QUALIFIER {_qualifier('on', group)}"
     zia = _ACTION_ZIA.get(action)
     if not zia:
         return None
-    return f"{zia} EDISIO ID {dev_dec}{qual}"
+    return f"{zia} EDISIO ID {dev_dec} QUALIFIER {_qualifier(action, group)}"
 
 
 def build_assoc_command(edisio_id: str, group: int = 1) -> str | None:
