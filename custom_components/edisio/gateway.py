@@ -532,9 +532,17 @@ class EdisioGateway:
         await self.async_send(protocol.cmd_learn(edisio_id, mid))
 
     async def async_send(self, frames: list[str]) -> None:
-        """Emission de trames Edisio brutes (dongle transparent uniquement)."""
+        """Emission : trames Edisio brutes (dongle transparent) ou lignes ZIA (RFPlayer).
+
+        En mode RFPlayer, ``send_raw`` sert de passe-plat ZIA : chaque « trame »
+        est une commande ZIA (sans le prefixe « ZIA++ » qu'ajoute ``_write_line``),
+        ce qui permet de mettre au point la syntaxe directement sur materiel reel
+        via les outils de developpement, sans nouvelle publication.
+        """
         if self.dongle == DONGLE_RFPLAYER:
-            _LOGGER.warning("Emission de trame brute ignoree : dongle RFPlayer")
+            async with self._write_lock:
+                for line in frames:
+                    self._write_line(line.strip())
             return
         if self._transport is None:
             _LOGGER.warning("Envoi impossible : port serie ferme")
