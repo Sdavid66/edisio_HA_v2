@@ -56,16 +56,19 @@ def build_command(action: str, edisio_id: str, group: int,
         return None
     # Le canal (groupe) est passe en QUALIFIER pour adresser un canal precis
     # d'un recepteur multi-canaux (a valider sur materiel reel).
+    # Syntaxe RFPlayer/ZiBlue : « ZIA++<CMD> <PROTOCOLE> ID <n> [QUALIFIER q] ».
+    # Le nom du protocole vient AVANT « ID » (et non apres) ; l'inverse est mal
+    # interprete par le RFPlayer (commande ON/OFF erratique sur materiel reel).
     qual = f" QUALIFIER {int(group)}"
     if action == "slider" and level is not None:
         lvl = max(0, min(100, int(level)))
         if lvl == 0:
-            return f"OFF ID {dev_dec} EDISIO{qual}"
-        return f"DIM ID {dev_dec} EDISIO %{lvl}{qual}"
+            return f"OFF EDISIO ID {dev_dec}{qual}"
+        return f"DIM EDISIO ID {dev_dec} %{lvl}{qual}"
     zia = _ACTION_ZIA.get(action)
     if not zia:
         return None
-    return f"{zia} ID {dev_dec} EDISIO{qual}"
+    return f"{zia} EDISIO ID {dev_dec}{qual}"
 
 
 def build_assoc_command(edisio_id: str, group: int = 1) -> str | None:
@@ -81,7 +84,7 @@ def build_assoc_command(edisio_id: str, group: int = 1) -> str | None:
         dev_dec = int(edisio_id, 16)
     except (TypeError, ValueError):
         return None
-    return f"ASSOC ID {dev_dec} EDISIO QUALIFIER {int(group)}"
+    return f"ASSOC EDISIO ID {dev_dec} QUALIFIER {int(group)}"
 
 
 def _battery_pct(infos: dict) -> int | None:
