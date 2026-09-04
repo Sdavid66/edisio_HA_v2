@@ -10,7 +10,7 @@ from .const import (
     CONF_FUNCTIONS, CONF_MODEL, CONF_NAME, DOMAIN, EDRB4_PAIRS, MODEL_EDRB4,
     SUBENTRY_TYPE_DEVICE,
 )
-from .device import gateway_id
+from .device import via_hub_kwargs
 from .gateway import EdisioGateway
 
 
@@ -102,7 +102,7 @@ class EdisioReceiver(Entity):
             manufacturer="Edisio",
             model=self._model["name"],
             name=dev[CONF_NAME].rsplit(" C", 1)[0],
-            via_device=gateway_id(gateway.entry.entry_id),
+            **via_hub_kwargs(gateway.entry.entry_id, gateway.hub_device_id),
         )
 
     async def _send(self, action: str, slider: int | None = None) -> None:

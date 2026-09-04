@@ -141,6 +141,9 @@ class EdisioGateway:
         self.last_frame_at = None
         self.dongle_description: str | None = None
         self.dongle_vidpid: str | None = None
+        # id de registre de l'appareil hub (pour rattacher les autres via
+        # via_device_id ; renseigne a l'enregistrement du hub, cf. __init__.py)
+        self.hub_device_id: str | None = None
 
     @property
     def paired_count(self) -> int:
