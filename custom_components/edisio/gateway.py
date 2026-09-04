@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from typing import Callable
 
 import serial_asyncio_fast as serial_asyncio
@@ -27,6 +28,58 @@ _LOGGER = logging.getLogger(__name__)
 
 _HEADER = bytes.fromhex(protocol.HEADER)
 _FOOTER = bytes.fromhex(protocol.FOOTER)
+
+# Reconnexion serie : backoff exponentiel borne (secondes).
+_RECONNECT_MIN = 5
+_RECONNECT_MAX = 60
+
+# Repertoire des liens stables par identifiant materiel (Linux).
+_SERIAL_BY_ID = "/dev/serial/by-id"
+
+
+def _serial_by_id(device: str) -> str:
+    """Chemin stable ``/dev/serial/by-id/...`` correspondant a ``device``.
+
+    Resout un ``/dev/ttyUSBn`` (nom volatil qui change a la re-enumeration USB)
+    vers son lien by-id stable, pour que la reconnexion survive au changement de
+    numero sans redemarrage. Retourne l'entree inchangee si c'est deja un by-id,
+    s'il est introuvable, ou hors Linux. Appel bloquant : lancer dans un executor.
+    """
+    if device.startswith(_SERIAL_BY_ID):
+        return device
+    try:
+        target = os.path.realpath(device)
+        for name in os.listdir(_SERIAL_BY_ID):
+            link = os.path.join(_SERIAL_BY_ID, name)
+            if os.path.realpath(link) == target:
+                return link
+    except OSError:
+        pass
+    return device
+
+
+def _dongle_info(port: str) -> tuple[str | None, str | None] | None:
+    """(bloquant) ``(description, 'VID:PID')`` du port, ou None si introuvable.
+
+    Compare par ``realpath`` pour fonctionner que ``port`` soit un ``ttyUSBn`` ou
+    un chemin ``by-id``.
+    """
+    from serial.tools import list_ports
+    try:
+        target = os.path.realpath(port)
+        ports = list_ports.comports()
+    except OSError:
+        return None
+    for p in ports:
+        try:
+            if os.path.realpath(p.device) != target:
+                continue
+        except OSError:
+            continue
+        desc = p.description if (p.description and p.description != "n/a") else None
+        vidpid = f"{p.vid:04X}:{p.pid:04X}" if (p.vid and p.pid) else None
+        return (desc, vidpid)
+    return None
 
 
 def classify(decoded: dict) -> set[str]:
@@ -135,6 +188,7 @@ class EdisioGateway:
         self._write_lock = asyncio.Lock()
         self._closing = False
         self._reconnect_task = None
+        self._reconnect_delay = _RECONNECT_MIN
         # etat expose aux entites de diagnostic du hub
         self.connected = False
         self.frames_received = 0
@@ -182,21 +236,19 @@ class EdisioGateway:
 
     async def _resolve_dongle(self) -> None:
         """Identifie le dongle (description USB, VID:PID) pour l'appareil hub."""
-        from serial.tools import list_ports
-        try:
-            ports = await self.hass.async_add_executor_job(list_ports.comports)
-        except Exception:  # noqa: BLE001
+        info = await self.hass.async_add_executor_job(_dongle_info, self.port)
+        if info is None:
             return
-        for p in ports:
-            if p.device != self.port:
-                continue
-            if p.description and p.description != "n/a":
-                self.dongle_description = p.description
-            if p.vid and p.pid:
-                self.dongle_vidpid = f"{p.vid:04X}:{p.pid:04X}"
-            return
+        self.dongle_description, self.dongle_vidpid = info
 
     async def _connect(self) -> None:
+        # Verrouille sur le chemin stable by-id des qu'on peut le resoudre : la
+        # reconnexion survit alors a la re-enumeration USB (ttyUSB0 -> ttyUSB1)
+        # sans redemarrage de HA. Reste sur le nom courant tant qu'il est absent.
+        resolved = await self.hass.async_add_executor_job(_serial_by_id, self.port)
+        if resolved != self.port:
+            _LOGGER.info("Port Edisio : %s -> chemin stable %s", self.port, resolved)
+            self.port = resolved
         rfplayer_mode = self.dongle == DONGLE_RFPLAYER
         baudrate = RFPLAYER_BAUDRATE if rfplayer_mode else SERIAL_BAUDRATE
         if rfplayer_mode:
@@ -212,6 +264,7 @@ class EdisioGateway:
             _LOGGER.info("Passerelle Edisio demarree sur %s (%s, %d bauds)",
                          self.port, self.dongle, baudrate)
             self.connected = True
+            self._reconnect_delay = _RECONNECT_MIN  # succes -> reinitialise le backoff
             self._notify_status()
             if rfplayer_mode:
                 for command in rfplayer.INIT_COMMANDS:
@@ -259,9 +312,13 @@ class EdisioGateway:
     def _schedule_reconnect(self):
         if self._closing or (self._reconnect_task and not self._reconnect_task.done()):
             return
+        delay = self._reconnect_delay
+        # Backoff exponentiel borne : evite de marteler un port absent (et de
+        # boucler serre sur un dongle qui se reconnecte puis retombe aussitot).
+        self._reconnect_delay = min(self._reconnect_delay * 2, _RECONNECT_MAX)
 
         async def _retry():
-            await asyncio.sleep(5)
+            await asyncio.sleep(delay)
             if not self._closing:
                 await self._connect()
 

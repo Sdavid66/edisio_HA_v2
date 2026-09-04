@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import secrets
 
 import voluptuous as vol
@@ -66,10 +67,26 @@ def _read_uploaded(hass: HomeAssistant, file_id: str) -> str:
         return path.read_text(encoding="utf-8", errors="replace")
 
 
-async def _async_serial_ports(hass) -> dict[str, str]:
-    ports = await hass.async_add_executor_job(list_ports.comports)
+def _list_serial_ports() -> dict[str, str]:
+    """(bloquant) {chemin_port: label}. La *valeur* est le chemin **by-id**
+    stable quand il existe (survit a la re-enumeration USB : ttyUSB0 -> ttyUSB1),
+    le label restant lisible (ttyUSBn + description)."""
+    ports = list_ports.comports()
+    # Cartographie realpath(ttyUSBn) -> lien by-id stable.
+    by_id: dict[str, str] = {}
+    try:
+        base = "/dev/serial/by-id"
+        for name in os.listdir(base):
+            link = os.path.join(base, name)
+            by_id[os.path.realpath(link)] = link
+    except OSError:
+        pass
     result: dict[str, str] = {}
     for p in ports:
+        try:
+            stable = by_id.get(os.path.realpath(p.device), p.device)
+        except OSError:
+            stable = p.device
         label = p.device
         if p.description and p.description != "n/a":
             label = f"{p.device} ({p.description})"
@@ -79,8 +96,12 @@ async def _async_serial_ports(hass) -> dict[str, str]:
         )
         if vid_pid in KNOWN_USB_IDS:
             label = f"⭐ {label}"
-        result[p.device] = label
+        result[stable] = label
     return result
+
+
+async def _async_serial_ports(hass) -> dict[str, str]:
+    return await hass.async_add_executor_job(_list_serial_ports)
 
 
 class EdisioConfigFlow(ConfigFlow, domain=DOMAIN):
