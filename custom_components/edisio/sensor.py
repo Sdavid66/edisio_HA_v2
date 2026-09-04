@@ -37,7 +37,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                 and sub.data.get(CONF_KIND) == KIND_REMOTE:
             async_add_entities(
                 [EdisioBatterySensor(entry.entry_id, sub.data[CONF_DEV_ID],
-                                     sub.data.get(CONF_NAME))],
+                                     sub.data.get(CONF_NAME),
+                                     hub_device_id=gw.hub_device_id)],
                 config_subentry_id=sub_id,
             )
 
@@ -52,11 +53,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
         if has_batt and f"{dev_id}_battery" not in seen:
             seen.add(f"{dev_id}_battery")
             new.append(EdisioBatterySensor(entry.entry_id, dev_id, name,
-                                           data.get("battery")))
+                                           data.get("battery"),
+                                           hub_device_id=gw.hub_device_id))
         if has_temp and f"{dev_id}_temp" not in seen:
             seen.add(f"{dev_id}_temp")
             new.append(EdisioTemperatureSensor(entry.entry_id, dev_id, name,
-                                               data.get("temperature")))
+                                               data.get("temperature"),
+                                               hub_device_id=gw.hub_device_id))
         if new:
             async_add_entities(new)
 
@@ -76,9 +79,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
 class _Base(SensorEntity):
     _attr_should_poll = False
 
-    def __init__(self, entry_id: str, dev_id: str, name: str | None = None):
+    def __init__(self, entry_id: str, dev_id: str, name: str | None = None,
+                 hub_device_id: str | None = None):
         self._dev_id = dev_id
-        self._attr_device_info = emitter_device_info(entry_id, dev_id, name)
+        self._attr_device_info = emitter_device_info(
+            entry_id, dev_id, name, hub_device_id=hub_device_id)
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
@@ -99,8 +104,8 @@ class EdisioBatterySensor(_Base):
     _attr_entity_registry_enabled_default = True
 
     def __init__(self, entry_id: str, dev_id: str, name: str | None = None,
-                 initial: int | None = None):
-        super().__init__(entry_id, dev_id, name)
+                 initial: int | None = None, hub_device_id: str | None = None):
+        super().__init__(entry_id, dev_id, name, hub_device_id)
         self._attr_name = f"Edisio {dev_id} batterie"
         self._attr_unique_id = f"{DOMAIN}_{dev_id}_battery"
         if initial is not None:
@@ -119,8 +124,8 @@ class EdisioTemperatureSensor(_Base):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, entry_id: str, dev_id: str, name: str | None = None,
-                 initial: float | None = None):
-        super().__init__(entry_id, dev_id, name)
+                 initial: float | None = None, hub_device_id: str | None = None):
+        super().__init__(entry_id, dev_id, name, hub_device_id)
         self._attr_name = f"Edisio {dev_id} temperature"
         self._attr_unique_id = f"{DOMAIN}_{dev_id}_temperature"
         if initial is not None:

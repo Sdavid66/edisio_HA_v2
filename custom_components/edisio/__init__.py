@@ -74,7 +74,7 @@ async def _async_register_hub(
         model = gateway.dongle_description or "Dongle USB Edisio 868 MHz"
     if gateway.dongle_vidpid:
         model = f"{model} ({gateway.dongle_vidpid})"
-    dr.async_get(hass).async_get_or_create(
+    hub_device = dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={gateway_id(entry.entry_id)},
         manufacturer=manufacturer,
@@ -83,6 +83,9 @@ async def _async_register_hub(
         sw_version=str(integration.version) if integration.version else None,
         entry_type=dr.DeviceEntryType.SERVICE,
     )
+    # Memorise l'id de registre du hub : les emetteurs/recepteurs s'y rattachent
+    # via via_device_id (HA >= 2026.9, cf. device.via_hub_kwargs).
+    gateway.hub_device_id = hub_device.id
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -19,6 +19,7 @@ EVENT_TYPES = ["on", "off", "toggle", "up", "down", "stop"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
+    gw = hass.data[DOMAIN][entry.entry_id]
     seen: set[str] = set()
 
     # Telecommandes (sous-entrees) : une entite event par bouton appris.
@@ -32,7 +33,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
         remote_model = sub.data.get(CONF_REMOTE_MODEL)
         buttons = [
             EdisioButtonEvent(entry.entry_id, dev_id, remote_name, remote_model,
-                              b[CONF_CODE], b[CONF_NAME])
+                              b[CONF_CODE], b[CONF_NAME],
+                              hub_device_id=gw.hub_device_id)
             for b in sub.data.get(CONF_BUTTONS, [])
         ]
         if buttons:
@@ -49,7 +51,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
         if dev_id in seen:
             return
         seen.add(dev_id)
-        async_add_entities([EdisioRemoteEvent(entry.entry_id, dev_id, data.get("name"))])
+        async_add_entities([EdisioRemoteEvent(entry.entry_id, dev_id,
+                                              data.get("name"),
+                                              hub_device_id=gw.hub_device_id)])
 
     @callback
     def _removed(dev_id: str) -> None:
@@ -67,11 +71,13 @@ class EdisioRemoteEvent(EventEntity):
     _attr_should_poll = False
     _attr_event_types = EVENT_TYPES
 
-    def __init__(self, entry_id: str, dev_id: str, name: str | None = None):
+    def __init__(self, entry_id: str, dev_id: str, name: str | None = None,
+                 hub_device_id: str | None = None):
         self._dev_id = dev_id
         self._attr_name = f"Edisio {dev_id} telecommande"
         self._attr_unique_id = f"{DOMAIN}_{dev_id}_remote"
-        self._attr_device_info = emitter_device_info(entry_id, dev_id, name)
+        self._attr_device_info = emitter_device_info(
+            entry_id, dev_id, name, hub_device_id=hub_device_id)
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(
@@ -96,13 +102,15 @@ class EdisioButtonEvent(EventEntity):
     _attr_event_types = EVENT_TYPES
 
     def __init__(self, entry_id: str, dev_id: str, remote_name: str | None,
-                 remote_model: str | None, code: str, name: str):
+                 remote_model: str | None, code: str, name: str,
+                 hub_device_id: str | None = None):
         self._dev_id = dev_id
         self._code = code
         self._attr_name = name
         self._attr_unique_id = f"{DOMAIN}_{dev_id}_btn_{code}"
         self._attr_device_info = emitter_device_info(
-            entry_id, dev_id, remote_name, remote_model
+            entry_id, dev_id, remote_name, remote_model,
+            hub_device_id=hub_device_id,
         )
 
     async def async_added_to_hass(self) -> None:
